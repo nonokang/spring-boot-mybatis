@@ -4,11 +4,11 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.spring.boot</groupId>
-	<artifactId>demo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<artifactId>image</artifactId>
+	<version>0.0.2</version>
 	<packaging>jar</packaging>
 
-	<name>spring-boot-mybatis</name>
+	<name>image</name>
 	<description>Demo project for Spring Boot</description>
 
 	<parent>
@@ -22,6 +22,9 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.8</java.version>
+		<docker.repository>registry.cn-hangzhou.aliyuncs.com</docker.repository>
+		<docker.registry.name>wpk</docker.registry.name>
+        <!--<docker.image.prefix>nonokang</docker.image.prefix>-->
 	</properties>
 
 	<dependencies>
@@ -66,14 +69,122 @@
 		    <artifactId>log4j</artifactId>
 		    <version>1.2.17</version>
 		</dependency>
+		<dependency>
+			<groupId>org.fusesource</groupId>
+			<artifactId>sigar</artifactId>
+			<version>1.6.4</version>
+		</dependency>
+		<dependency>
+			<groupId>io.dropwizard.metrics</groupId>
+			<artifactId>metrics-graphite</artifactId>
+			<version>3.2.6</version>
+		</dependency>
 	</dependencies>
 
 	<build>
+		<finalName>springboot-docker-${project.version}</finalName>
+		<!-- Dockerfile文件路径配置 -->
+		<resources>
+			<resource>
+				<directory>src/main/docker</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>**/Dockerfile</include>
+				</includes>
+				<targetPath>../docker</targetPath>
+			</resource>
+		</resources>
+
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+
+			<!--使用maven命令为：mvn clean package docker:build-->
+			<plugin>
+				<groupId>com.spotify</groupId>
+				<artifactId>docker-maven-plugin</artifactId>
+				<!--<version>1.0.0</version>-->
+				<version>0.4.12</version>
+
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>build</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>tag-image</id>
+						<phase>package</phase>
+						<goals>
+							<goal>tag</goal>
+						</goals>
+						<configuration>
+							<image>${docker.repository}/${docker.registry.name}/${project.artifactId}:${project.version}</image>
+							<newName>${docker.repository}/${docker.registry.name}/${project.artifactId}:${project.version}</newName>
+						</configuration>
+					</execution>
+					<execution>
+						<id>push-image</id>
+						<phase>deploy</phase>
+						<goals>
+							<goal>push</goal>
+						</goals>
+						<configuration>
+							<imageName>${docker.repository}/${docker.registry.name}/${project.artifactId}:${project.version}</imageName>
+						</configuration>
+					</execution>
+				</executions>
+
+				<!--docker镜像相关的配置信息-->
+				<configuration>
+					<serverId>docker-aliyun</serverId>
+					<registryUrl>${docker.repository}</registryUrl>
+					<pushImage>true</pushImage>
+					<!--镜像名，这里用工程名-->
+					<imageName>${docker.repository}/${docker.registry.name}/${project.artifactId}:${project.version}</imageName>
+					<!--TAG,这里用项目版本号，如：latest-->
+					<imageTags>
+						<imageTag>${project.version}</imageTag>
+					</imageTags>
+					<dockerDirectory>target/docker</dockerDirectory>
+					<!--镜像的FROM，使用java官方镜像-->
+					<!--<baseImage>java:8u111-jdk</baseImage>-->
+					<!--该镜像的容器启动后，直接运行spring boot工程-->
+					<!--<entryPoint>["java", "-jar", "/${project.build.finalName}.jar"]</entryPoint>-->
+					<!--构建镜像的配置信息-->
+					<resources>
+						<resource>
+							<targetPath>/</targetPath>
+							<directory>${project.build.directory}</directory>
+							<include>${project.build.finalName}.jar</include>
+						</resource>
+					</resources>
+				</configuration>
+			</plugin>
+
+			<!--
+			google新推出的docker镜像打包工具，使用用maven命令如下
+			# Builds to a container image registry.
+			$ mvn compile jib:build
+			# Builds to a Docker daemon.
+			$ mvn compile jib:dockerBuild-->
+			<!--<plugin>
+				<groupId>com.google.cloud.tools</groupId>
+				<artifactId>jib-maven-plugin</artifactId>
+				<version>0.9.0</version>
+				<configuration>
+					<to>
+						&lt;!&ndash;<image>registry.cn-hangzhou.aliyuncs.com/wpk/jibtest</image>&ndash;&gt;
+						&lt;!&ndash;<image>aws_account_id.dkr.ecr.region.amazonaws.com/my-base-image</image>
+						<credHelper>ecr-login</credHelper>&ndash;&gt;
+						<image>gcr.io/my-project/image-built-with-jib</image>
+					</to>
+				</configuration>
+			</plugin>-->
+
 			<plugin>
                  <groupId>org.mybatis.generator</groupId>
                  <artifactId>mybatis-generator-maven-plugin</artifactId>
@@ -92,6 +203,7 @@
                  </configuration>
              </plugin>
 		</plugins>
+
 	</build>
 
 
